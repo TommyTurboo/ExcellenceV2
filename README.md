@@ -612,7 +612,7 @@ Verwachte serial log bij communicatieverlies:
 Failsafe activated endpoint=status_led gpio=2 state=off elapsed_ms=20000 timeout_ms=20000 last_message_id=1016
 ```
 
-Buildstatus: `esp32dev`, `relay_01` en `actuator_01` bouwen succesvol. Upload naar de zichtbare boards is nog niet bevestigd voor Slice 11, omdat `COM5` en `COM9` bij de eerste pogingen niet in download mode gingen (`Wrong boot mode detected (0x13)`). De volgende fysieke verificatie is: flash `actuator_01`, stuur een `SET_OUTPUT on`, onderbreek daarna gateway/relay-commands langer dan 20 seconden en controleer dat GPIO2/relais afvalt met bovenstaande log.
+Buildstatus: `esp32dev`, `relay_01` en `actuator_01` bouwen succesvol. Slice 11 is bevestigd geflasht op `COM5` (`gateway_01`, MAC `D0:EF:76:15:54:80`) en `COM9` (`actuator_01`, MAC `D0:EF:76:15:86:98`). Actuatorlogs tonen opnieuw geldige `SET_OUTPUT` commands en ACKs via de relay. De volgende fysieke verificatie is: gateway/relay-commandflow langer dan 20 seconden onderbreken en controleren dat GPIO2/relais afvalt met bovenstaande `Failsafe activated` log.
 
 ## Network Message Contract
 
