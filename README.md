@@ -242,6 +242,8 @@ Voor relaissturing geldt:
 - bevestig pas na effectieve uitvoering;
 - zet outputs naar veilige toestand bij langdurig communicatieverlies.
 
+Slice 11 implementeert de eerste concrete failsafe voor `status_led`/GPIO2: na 20 seconden zonder nieuw geldig `SET_OUTPUT` command schakelt de actuator-output automatisch naar `off`. Een nieuw geldig command zet de failsafe-status terug naar normaal.
+
 ## Pin- en Hardwarevalidatie
 
 De firmware moet configuratie valideren voordat pins geactiveerd worden.
@@ -590,6 +592,27 @@ Delivery success message_id=1014 ack_id=50003 source=actuator_01 source_mac=D8:1
 ```
 
 Poortnotitie: tijdens deze test bleef de actuator dezelfde MAC `D0:EF:76:15:86:98` houden, maar Windows gaf hem opnieuw als `COM9` in plaats van de eerdere `COM12`.
+
+## Output Failsafe
+
+Slice 11 voegt een eerste failsafe toe aan de hardcoded digital-output runtime.
+
+Huidig gedrag in code:
+
+- de output start veilig als `off`;
+- alleen relay- en actuator-rollen activeren de digital-output runtime;
+- na elk geldig `SET_OUTPUT` command wordt `last_valid_command_ms` bijgewerkt;
+- als er 20 seconden geen geldig command meer binnenkomt, schakelt GPIO2 naar `off`;
+- de failsafe wordt maar een keer per commandstilte gelogd;
+- een nieuw geldig command herstelt normale werking en wist de actieve failsafe-status.
+
+Verwachte serial log bij communicatieverlies:
+
+```text
+Failsafe activated endpoint=status_led gpio=2 state=off elapsed_ms=20000 timeout_ms=20000 last_message_id=1016
+```
+
+Buildstatus: `esp32dev`, `relay_01` en `actuator_01` bouwen succesvol. Upload naar de zichtbare boards is nog niet bevestigd voor Slice 11, omdat `COM5` en `COM9` bij de eerste pogingen niet in download mode gingen (`Wrong boot mode detected (0x13)`). De volgende fysieke verificatie is: flash `actuator_01`, stuur een `SET_OUTPUT on`, onderbreek daarna gateway/relay-commands langer dan 20 seconden en controleer dat GPIO2/relais afvalt met bovenstaande log.
 
 ## Network Message Contract
 

@@ -167,6 +167,8 @@ void app_main(void) {
              heartbeat_led_enabled ? (led_state ? "on" : "off") : "application-controlled",
              heap_caps_get_free_size(MALLOC_CAP_DEFAULT));
 
+    excellence_digital_output_tick();
+
     if (heartbeat_count % HELLO_INTERVAL_HEARTBEATS == 0) {
       hello_sequence++;
       ESP_ERROR_CHECK(excellence_espnow_send_hello(hello_sequence));

@@ -9,20 +9,30 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "espnow_transport.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "network_message.h"
 #include "node_identity.h"
 
 #define TEST_OUTPUT_ENDPOINT_ID "status_led"
 #define TEST_OUTPUT_GPIO GPIO_NUM_2
+#define TEST_OUTPUT_FAILSAFE_STATE false
+#define TEST_OUTPUT_FAILSAFE_TIMEOUT_MS 20000U
 
 static const char *TAG = "digital_output";
 
 static bool output_initialized = false;
 static bool output_state = false;
+static bool failsafe_active = false;
 static bool has_last_command = false;
+static uint32_t last_valid_command_ms = 0;
 static uint32_t last_message_id = 0;
 static uint32_t next_ack_message_id = 50000;
 static char last_source_node_id[EXCELLENCE_MESSAGE_NODE_ID_MAX_LEN] = {0};
+
+static uint32_t now_ms(void) {
+  return (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+}
 
 static void copy_message_text(const char *source, size_t source_len, char *destination, size_t destination_len) {
   if (destination == NULL || destination_len == 0) {
@@ -142,6 +152,8 @@ void excellence_digital_output_handle_accepted_message(const excellence_network_
   const bool requested_state = message->payload[0] != 0;
   ESP_ERROR_CHECK(gpio_set_level(TEST_OUTPUT_GPIO, requested_state ? 1 : 0));
   output_state = requested_state;
+  failsafe_active = false;
+  last_valid_command_ms = now_ms();
   remember_command(message, source_node_id);
 
   ESP_LOGI(TAG,
@@ -158,6 +170,30 @@ void excellence_digital_output_handle_accepted_message(const excellence_network_
   if (ack_result != ESP_OK) {
     ESP_LOGW(TAG, "ACK send failed correlation=%" PRIu32 " error=%s", message->message_id, esp_err_to_name(ack_result));
   }
+}
+
+void excellence_digital_output_tick(void) {
+  if (!output_initialized || !has_last_command || failsafe_active) {
+    return;
+  }
+
+  const uint32_t elapsed_ms = now_ms() - last_valid_command_ms;
+  if (elapsed_ms < TEST_OUTPUT_FAILSAFE_TIMEOUT_MS) {
+    return;
+  }
+
+  ESP_ERROR_CHECK(gpio_set_level(TEST_OUTPUT_GPIO, TEST_OUTPUT_FAILSAFE_STATE ? 1 : 0));
+  output_state = TEST_OUTPUT_FAILSAFE_STATE;
+  failsafe_active = true;
+
+  ESP_LOGW(TAG,
+           "Failsafe activated endpoint=%s gpio=%d state=%s elapsed_ms=%" PRIu32 " timeout_ms=%u last_message_id=%" PRIu32,
+           TEST_OUTPUT_ENDPOINT_ID,
+           TEST_OUTPUT_GPIO,
+           output_state ? "on" : "off",
+           elapsed_ms,
+           TEST_OUTPUT_FAILSAFE_TIMEOUT_MS,
+           last_message_id);
 }
 
 esp_err_t excellence_digital_output_init(void) {
@@ -191,12 +227,17 @@ esp_err_t excellence_digital_output_init(void) {
 
   output_initialized = true;
   output_state = false;
+  failsafe_active = false;
+  has_last_command = false;
+  last_valid_command_ms = 0;
 
   ESP_LOGI(TAG,
-           "Digital output runtime ready node_id=%s endpoint=%s gpio=%d initial_state=off",
+           "Digital output runtime ready node_id=%s endpoint=%s gpio=%d initial_state=off failsafe_state=%s failsafe_timeout_ms=%u",
            identity->node_id,
            TEST_OUTPUT_ENDPOINT_ID,
-           TEST_OUTPUT_GPIO);
+           TEST_OUTPUT_GPIO,
+           TEST_OUTPUT_FAILSAFE_STATE ? "on" : "off",
+           TEST_OUTPUT_FAILSAFE_TIMEOUT_MS);
   return ESP_OK;
 }
 

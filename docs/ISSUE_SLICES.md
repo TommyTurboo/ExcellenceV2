@@ -245,6 +245,8 @@ Verificatie: `platformio run -e esp32dev -e relay_01 -e actuator_01` slaagt. Upl
 
 ## 11. Failsafe voor relay-output
 
+Status: Build geverifieerd
+
 Type: AFK
 
 Geblokkeerd door: Slice 6
@@ -257,11 +259,15 @@ Voeg failsafe-gedrag toe aan een actuator-output, zodat die naar veilige toestan
 
 ### Acceptatiecriteria
 
-- [ ] Een output heeft een configureerbare failsafe-state.
-- [ ] Een output heeft een configureerbare communicatie-timeout.
-- [ ] De output schakelt naar failsafe-state wanneer de timeout verstrijkt.
-- [ ] Een geldig nieuw command herstelt normale werking.
-- [ ] De seriele logs tonen wanneer failsafe geactiveerd wordt.
+- [x] Een output heeft een configureerbare failsafe-state.
+- [x] Een output heeft een configureerbare communicatie-timeout.
+- [x] De output schakelt naar failsafe-state wanneer de timeout verstrijkt.
+- [x] Een geldig nieuw command herstelt normale werking.
+- [x] De seriele logs tonen wanneer failsafe geactiveerd wordt.
+
+Implementatienotitie: `src/components/digital_output.*` bevat nu een `excellence_digital_output_tick()`. Relay- en actuatorrollen starten GPIO2 veilig als `off`. Na elk geldig `SET_OUTPUT` command wordt `last_valid_command_ms` bijgewerkt en wordt een eventuele actieve failsafe gewist. Als 20 seconden lang geen geldig command meer binnenkomt, zet de runtime GPIO2 naar de failsafe-state `off` en logt `Failsafe activated ...`. De log wordt maar een keer per commandstilte geschreven.
+
+Verificatie: `platformio run -e esp32dev -e relay_01 -e actuator_01` slaagt. Upload en veldtest zijn nog open: `COM5` en `COM9` reageerden bij de eerste Slice 11-uploadpogingen met `Wrong boot mode detected (0x13)`, dus de boards stonden niet in download mode. Fysieke acceptatie blijft: `actuator_01` flashen, output `on` laten zetten, gateway/relay-commandflow langer dan 20 seconden onderbreken en controleren dat GPIO2/relais naar `off` gaat met de `Failsafe activated` log.
 
 ## 12. Eerste componentruntime voor digital output en analog input
 
