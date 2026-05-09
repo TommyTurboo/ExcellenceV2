@@ -238,8 +238,9 @@ bool excellence_network_message_handle_received(const uint8_t *data,
     }
 
     ESP_LOGI(TAG,
-             "Ignored network message id=%" PRIu32 " type=%s source=%s target_node=%s next_hop=%s reply_next_hop=%s local_node=%s endpoint=%s ttl=%u",
+             "Ignored network message id=%" PRIu32 " attempt=%u type=%s source=%s target_node=%s next_hop=%s reply_next_hop=%s local_node=%s endpoint=%s ttl=%u",
              message.message_id,
+             message.attempt,
              excellence_network_message_type_to_string(message.type),
              source_node_id,
              target_node_id,
@@ -252,8 +253,9 @@ bool excellence_network_message_handle_received(const uint8_t *data,
   }
 
   ESP_LOGI(TAG,
-           "Accepted network message id=%" PRIu32 " correlation=%" PRIu32 " type=%s source=%s target_node=%s next_hop=%s reply_next_hop=%s endpoint=%s ttl=%u payload_len=%u",
+           "Accepted network message id=%" PRIu32 " attempt=%u correlation=%" PRIu32 " type=%s source=%s target_node=%s next_hop=%s reply_next_hop=%s endpoint=%s ttl=%u payload_len=%u",
            message.message_id,
+           message.attempt,
            message.correlation_id,
            excellence_network_message_type_to_string(message.type),
            source_node_id,

@@ -181,9 +181,10 @@ Het interne ESP-NOW-bericht bevat dezelfde betekenis in vaste velden:
 - `target_endpoint_id`: functioneel doel op de node, bijvoorbeeld `pump_relay`;
 - `type`: `set_output`, `sensor_value` of `ack`;
 - `ttl`: maximale forwardingdiepte;
+- `attempt`: retry-teller voor hetzelfde command;
 - `payload`: compacte command- of meetdata.
 
-Slice 5 implementeert validatie, target-checking en TTL-herkenning. Forwarding, deduplicatie en echte ACK-afhandeling volgen in latere slices.
+Slice 10 gebruikt `attempt` om eenzelfde `message_id` opnieuw te mogen verzenden wanneer de ACK uitblijft. De actuator blijft idempotent: hetzelfde `SET_OUTPUT` command wordt niet opnieuw uitgevoerd, maar de ACK wordt wel opnieuw verstuurd zodat een verloren ACK kan herstellen.
 
 ## Discovery en Topology Reporting
 
@@ -558,6 +559,38 @@ Delivery success message_id=1001 ack_id=50000 source=actuator_01 source_mac=D8:1
 
 Build- en uploadstatus: `esp32dev`, `relay_01` en `actuator_01` bouwen succesvol. Upload naar de drie huidige boards is bevestigd met manuele BOOT tijdens `Connecting...`.
 
+## Retry bij ontbrekende ACK
+
+Slice 10 voegt retrygedrag toe aan de gateway-delivery tracker:
+
+```text
+gateway_01 -- SET_OUTPUT id=1014 attempt=0 --> relay_01 --> actuator_01
+gateway_01 wacht op ACK correlation=1014
+gateway_01 -- SET_OUTPUT id=1014 attempt=1 --> relay_01 --> actuator_01  # als ACK uitblijft
+```
+
+Huidig gedrag in code:
+
+- `gateway_01` bewaart het volledige pending command tot de ACK binnenkomt;
+- na 5 seconden zonder ACK wordt hetzelfde command opnieuw verzonden met een hogere `attempt`;
+- na maximaal 3 attempts wordt `Delivery failure` gelogd en wordt het pending command vrijgegeven;
+- zolang een command pending is, stuurt de gateway geen nieuw testcommand;
+- relay-deduplicatie kijkt ook naar `attempt`, zodat retries doorgelaten worden;
+- actuator-deduplicatie blijft op `source_node_id + message_id`, zodat een retry het relais niet opnieuw toggelt of dubbel uitvoert;
+- een duplicate `SET_OUTPUT` stuurt wel opnieuw een ACK, zodat een verloren ACK kan worden hersteld.
+
+Bevestigde serial logs op 9 mei 2026:
+
+```text
+Tracking delivery message_id=1014 attempt=0 target_node=actuator_01 endpoint=status_led ack_timeout_ms=5000 max_attempts=3
+Sent network message id=1014 attempt=0 type=set_output target_node=actuator_01 endpoint=status_led ttl=3 payload_len=1
+Applied SET_OUTPUT id=1014 attempt=0 source=gateway_01 source_mac=D8:13:2A:7D:DB:A0 endpoint=status_led gpio=2 state=off
+Sending ACK ack_id=50003 correlation=1014 target_node=gateway_01 next_hop=relay_01 endpoint=status_led state=off
+Delivery success message_id=1014 ack_id=50003 source=actuator_01 source_mac=D8:13:2A:7D:DB:A0 endpoint=status_led
+```
+
+Poortnotitie: tijdens deze test bleef de actuator dezelfde MAC `D0:EF:76:15:86:98` houden, maar Windows gaf hem opnieuw als `COM9` in plaats van de eerdere `COM12`.
+
 ## Network Message Contract
 
 De eerste protocolmodule staat in `src/protocol/network_message.*`.
@@ -568,7 +601,8 @@ Huidig gedrag:
 - ondersteunt node-adressering via `target_node_id` en functie-adressering via `target_endpoint_id`;
 - ondersteunt route-adressering via `next_hop_node_id`;
 - ondersteunt ACK-retourroutering via `reply_next_hop_node_id`;
-- reserveert `correlation_id` en `ack` type voor latere end-to-end acknowledgements;
+- gebruikt `correlation_id` en `ack` voor end-to-end acknowledgements;
+- gebruikt `attempt` voor bounded retries bij ontbrekende ACKs;
 - valideert magic, versie, headerlengte, payloadlengte en TTL;
 - weigert te korte of verlopen berichten zonder crash;
 - negeert berichten voor andere nodes zolang forwarding nog niet actief is;

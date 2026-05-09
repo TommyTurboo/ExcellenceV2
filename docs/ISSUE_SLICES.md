@@ -219,6 +219,8 @@ Verificatie: `platformio run -e esp32dev -e relay_01 -e actuator_01` bouwt succe
 
 ## 10. Retry bij ontbrekende ACK
 
+Status: Gedeeltelijk geverifieerd
+
 Type: AFK
 
 Geblokkeerd door: Slice 9
@@ -231,11 +233,15 @@ Voeg een delivery tracker toe die wacht op ACKs, timeouts detecteert en een comm
 
 ### Acceptatiecriteria
 
-- [ ] Een command zonder ACK krijgt een timeoutstatus.
-- [ ] Een command wordt maximaal een configureerbaar aantal keer opnieuw verzonden.
-- [ ] Delivery failure wordt duidelijk gelogd.
-- [ ] Een late ACK wordt correct behandeld zonder dubbele successmelding.
-- [ ] Retries blijven idempotent voor actuatorcommands.
+- [x] Een command zonder ACK krijgt een timeoutstatus in de delivery tracker.
+- [x] Een command wordt maximaal een configureerbaar aantal keer opnieuw verzonden.
+- [x] Delivery failure wordt duidelijk gelogd wanneer de retries opgebruikt zijn.
+- [x] Een late ACK wordt behandeld als orphan ACK zonder dubbele successmelding.
+- [x] Retries blijven idempotent voor actuatorcommands.
+
+Implementatienotitie: Slice 10 bewaart het volledige pending command in `src/delivery/delivery_tracker.*`. Als de ACK na 5 seconden ontbreekt, wordt hetzelfde `message_id` opnieuw verzonden met een verhoogde `attempt`. Na 3 attempts wordt `Delivery failure` gelogd. `gateway_01` stuurt geen nieuw periodiek testcommand zolang een eerder command nog pending is. De relay-dedupe gebruikt nu ook `attempt`, zodat retries worden doorgelaten. De actuator-dedupe blijft idempotent op `source_node_id + message_id`: een duplicate wordt niet opnieuw uitgevoerd, maar stuurt wel opnieuw een ACK.
+
+Verificatie: `platformio run -e esp32dev -e relay_01 -e actuator_01` slaagt. Upload naar `COM5` (`gateway_01`) en `COM11` (`relay_01`) slaagt met manuele BOOT. `actuator_01` was niet langer zichtbaar op de eerdere `COM12`; uitlezen van `COM9` toonde dezelfde actuator-MAC `D0:EF:76:15:86:98`, waarna upload naar `COM9` slaagde. Seriele logs tonen normale delivery met `attempt=0`: `Tracking delivery message_id=1014 attempt=0`, `Applied SET_OUTPUT id=1014 attempt=0`, `Sending ACK ack_id=50003 correlation=1014` en `Delivery success message_id=1014 ack_id=50003 source=actuator_01 source_mac=D8:13:2A:7D:DB:A0`. Een echte ontbrekende-ACK veldtest is nog niet uitgevoerd; daarvoor moet de actuator of relay tijdens een pending command bewust buiten bereik of zonder voeding gezet worden.
 
 ## 11. Failsafe voor relay-output
 

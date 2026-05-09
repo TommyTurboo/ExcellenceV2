@@ -36,6 +36,8 @@ typedef struct __attribute__((packed)) {
   uint8_t header_len;
   uint8_t type;
   uint8_t ttl;
+  uint8_t attempt;
+  uint8_t reserved;
   uint16_t payload_len;
   uint32_t message_id;
   uint32_t correlation_id;

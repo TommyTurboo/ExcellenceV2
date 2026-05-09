@@ -123,11 +123,19 @@ void excellence_digital_output_handle_accepted_message(const excellence_network_
 
   if (is_duplicate_command(message, source_node_id)) {
     ESP_LOGI(TAG,
-             "Duplicate SET_OUTPUT ignored id=%" PRIu32 " source=%s endpoint=%s state=%s",
+             "Duplicate SET_OUTPUT ignored id=%" PRIu32 " attempt=%u source=%s endpoint=%s state=%s; ACK resent",
              message->message_id,
+             message->attempt,
              source_node_id,
              target_endpoint_id,
              output_state ? "on" : "off");
+    esp_err_t duplicate_ack_result = send_ack_for_command(message, source_node_id, output_state);
+    if (duplicate_ack_result != ESP_OK) {
+      ESP_LOGW(TAG,
+               "Duplicate ACK send failed correlation=%" PRIu32 " error=%s",
+               message->message_id,
+               esp_err_to_name(duplicate_ack_result));
+    }
     return;
   }
 
@@ -137,8 +145,9 @@ void excellence_digital_output_handle_accepted_message(const excellence_network_
   remember_command(message, source_node_id);
 
   ESP_LOGI(TAG,
-           "Applied SET_OUTPUT id=%" PRIu32 " source=%s source_mac=%s endpoint=%s gpio=%d state=%s",
+           "Applied SET_OUTPUT id=%" PRIu32 " attempt=%u source=%s source_mac=%s endpoint=%s gpio=%d state=%s",
            message->message_id,
+           message->attempt,
            source_node_id,
            source_mac != NULL ? source_mac : "unknown",
            target_endpoint_id,

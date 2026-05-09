@@ -258,8 +258,9 @@ esp_err_t excellence_espnow_send_network_message(const excellence_network_messag
   esp_err_t result = esp_now_send(BROADCAST_MAC, (const uint8_t *)message, wire_len);
   if (result == ESP_OK) {
     ESP_LOGI(TAG,
-             "Sent network message id=%" PRIu32 " type=%s target_node=%s endpoint=%s ttl=%u payload_len=%u",
+             "Sent network message id=%" PRIu32 " attempt=%u type=%s target_node=%s endpoint=%s ttl=%u payload_len=%u",
              message->message_id,
+             message->attempt,
              excellence_network_message_type_to_string(message->type),
              message->target_node_id,
              message->target_endpoint_id,

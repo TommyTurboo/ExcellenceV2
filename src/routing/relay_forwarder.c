@@ -17,6 +17,7 @@ typedef struct {
   uint32_t message_id;
   uint32_t correlation_id;
   uint8_t type;
+  uint8_t attempt;
   char source_node_id[EXCELLENCE_MESSAGE_NODE_ID_MAX_LEN];
 } forward_cache_entry_t;
 
@@ -59,6 +60,7 @@ static bool has_seen_message(const excellence_network_message_t *message, const 
     if (forward_cache[i].message_id == message->message_id &&
         forward_cache[i].correlation_id == message->correlation_id &&
         forward_cache[i].type == message->type &&
+        forward_cache[i].attempt == message->attempt &&
         strcmp(forward_cache[i].source_node_id, source_node_id) == 0) {
       return true;
     }
@@ -74,6 +76,7 @@ static void remember_message(const excellence_network_message_t *message, const 
   entry->message_id = message->message_id;
   entry->correlation_id = message->correlation_id;
   entry->type = message->type;
+  entry->attempt = message->attempt;
   strlcpy(entry->source_node_id, source_node_id, sizeof(entry->source_node_id));
 
   next_cache_index = (next_cache_index + 1) % FORWARD_CACHE_SIZE;
@@ -97,8 +100,9 @@ bool excellence_relay_forwarder_handle_nonlocal_message(const excellence_network
 
   if (has_seen_message(message, source_node_id)) {
     ESP_LOGI(TAG,
-             "Duplicate not forwarded id=%" PRIu32 " correlation=%" PRIu32 " type=%s source=%s target_node=%s endpoint=%s ttl=%u",
+             "Duplicate not forwarded id=%" PRIu32 " attempt=%u correlation=%" PRIu32 " type=%s source=%s target_node=%s endpoint=%s ttl=%u",
              message->message_id,
+             message->attempt,
              message->correlation_id,
              excellence_network_message_type_to_string(message->type),
              source_node_id,
@@ -127,8 +131,9 @@ bool excellence_relay_forwarder_handle_nonlocal_message(const excellence_network
   excellence_network_message_set_next_hop(&forwarded, target_node_id);
 
   ESP_LOGI(TAG,
-           "Forwarding routed message id=%" PRIu32 " correlation=%" PRIu32 " type=%s source=%s target_node=%s next_hop=%s endpoint=%s ttl=%u->%u from_mac=%s",
+           "Forwarding routed message id=%" PRIu32 " attempt=%u correlation=%" PRIu32 " type=%s source=%s target_node=%s next_hop=%s endpoint=%s ttl=%u->%u from_mac=%s",
            forwarded.message_id,
+           forwarded.attempt,
            forwarded.correlation_id,
            excellence_network_message_type_to_string(forwarded.type),
            source_node_id,

@@ -119,7 +119,7 @@ static esp_err_t send_gateway_test_set_output(uint32_t message_id, bool requeste
            TEST_COMMAND_TARGET_ENDPOINT_ID,
            requested_state ? "on" : "off");
 
-  excellence_delivery_tracker_track(message_id, TEST_COMMAND_TARGET_NODE_ID, TEST_COMMAND_TARGET_ENDPOINT_ID);
+  excellence_delivery_tracker_track_message(&message);
   ESP_RETURN_ON_ERROR(excellence_espnow_send_network_message(&message), TAG, "SET_OUTPUT send failed");
 
   ESP_LOGI(TAG,
@@ -177,8 +177,17 @@ void app_main(void) {
       excellence_topology_dump();
     }
 
+    if (excellence_node_identity_get()->role == EXCELLENCE_NODE_ROLE_GATEWAY) {
+      excellence_delivery_tracker_tick();
+    }
+
     if (excellence_node_identity_get()->role == EXCELLENCE_NODE_ROLE_GATEWAY &&
         heartbeat_count % COMMAND_INTERVAL_HEARTBEATS == 0) {
+      if (excellence_delivery_tracker_has_pending()) {
+        ESP_LOGW(TAG, "Skipping new test command because previous delivery is still pending");
+        continue;
+      }
+
       command_state = !command_state;
       command_message_id++;
       ESP_ERROR_CHECK(send_gateway_test_set_output(command_message_id, command_state));
